@@ -1909,11 +1909,25 @@
 
 
     <div id="overlay" class="overlay"></div>
-    <div id="noteModal" class="modal">
-        <div>📝 调查笔记</div>
-        <textarea id="noteContent" placeholder="记录你的线索..."></textarea>
-        <button id="saveNoteBtn">保存</button>
+    <div id="noteModal" class="modal" style="max-height:85vh; width:320px; top:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; padding:20px; overflow:hidden; border-radius:8px;">
+    <!-- 标题栏 + 关闭按钮 -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
+        <span style="font-weight:bold;">📝 调查笔记</span>
+        <span id="closeNoteBtn" style="cursor:pointer; font-size:1.2rem; color:#94a3b8; line-height:1;" title="关闭">✕</span>
     </div>
+    <!-- 可滚动内容区 -->
+    <div style="flex:1; overflow-y:auto; padding-right:5px; min-height:0;">
+        <textarea id="noteContent" placeholder="记录你的线索..." style="width:100%; height:120px; margin-bottom:15px; padding:8px; font-family:monospace; border:1px solid #cbd5e1; border-radius:4px; resize:vertical;"></textarea>
+        <!-- 游玩足迹区域 -->
+        <div id="visitedPagesContainer" style="margin-top:15px; border-top:1px solid #e2e8f0; padding-top:10px;">
+            <div style="font-weight:bold; margin-bottom:8px; font-size:0.9rem;">👣 游玩足迹</div>
+            <div id="visitedPagesList" style="font-size:0.8rem; max-height:150px; overflow-y:auto;">
+                <!-- JavaScript 动态填充 -->
+            </div>
+        </div>
+    </div>
+    <button id="saveNoteBtn" style="margin-top:10px; flex-shrink:0;">保存</button>
+</div>
 
     <script>
         const page0 = document.getElementById('page0');
@@ -1963,6 +1977,7 @@
         const page44 = document.getElementById('page44');
 
         let previousPage = null;
+        window.visitedPages = [];
         let autoJumpTimer;
         let emailTimer;
 
@@ -1978,6 +1993,35 @@
             el.value = '';
         }
     });
+
+        // 👇 新增：页面足迹记录
+    const pageFooter = page.querySelector('.page-footer');
+    if (pageFooter) {
+        const pageNumText = pageFooter.textContent.trim();
+        const pageNumMatch = pageNumText.match(/^(\d+)\//);
+        if (pageNumMatch) {
+            const currentPageNum = pageNumMatch[1];
+            let pageTitle = page.querySelector('h2')?.textContent.trim() ||
+                           page.querySelector('.post-title')?.textContent.trim() ||
+                           page.querySelector('.email-body p:first-child')?.textContent.trim() ||
+                           '';
+            if (!pageTitle || pageTitle.length === 0) {
+                pageTitle = '第' + currentPageNum + '页';
+            }
+            if (pageTitle.length > 25) {
+                pageTitle = pageTitle.substring(0, 25) + '...';
+            }
+            const alreadyVisited = window.visitedPages.some(item => item.num === currentPageNum);
+            if (!alreadyVisited) {
+                window.visitedPages.push({
+                    num: currentPageNum,
+                    title: pageTitle,
+                    id: page.id
+                });
+            }
+            updateVisitedPagesDisplay();
+        }
+    }
 
     if (autoJumpTimer) { clearTimeout(autoJumpTimer); autoJumpTimer = null; }
     if (emailTimer) { clearTimeout(emailTimer); emailTimer = null; }
@@ -2026,6 +2070,36 @@
     }
 }
 
+       // 👇 新增：更新足迹列表显示
+function updateVisitedPagesDisplay() {
+    const container = document.getElementById('visitedPagesList');
+    if (!container || !window.visitedPages) return;
+    container.innerHTML = '';
+    const sorted = [...window.visitedPages].sort((a, b) => parseInt(a.num) - parseInt(b.num));
+    if (sorted.length === 0) {
+        const emptyTip = document.createElement('div');
+        emptyTip.style.cssText = 'color:#94a3b8; font-size:0.75rem;';
+        emptyTip.textContent = '你还没有探索过任何页面...';
+        container.appendChild(emptyTip);
+        return;
+    }
+    sorted.forEach(page => {
+        const link = document.createElement('div');
+        link.style.cssText = 'padding:4px 0; cursor:pointer; color:#1e40af; border-bottom:1px solid #f1f5f9;';
+        link.textContent = '📄 第' + page.num + '页：' + page.title;
+        link.addEventListener('click', () => {
+            const targetPage = document.getElementById(page.id);
+            if (targetPage) {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                targetPage.classList.add('active');
+                document.getElementById('noteModal').style.display = 'none';
+                document.getElementById('overlay').style.display = 'none';
+            }
+        });
+        container.appendChild(link);
+    });
+} 
+        
         function handleAudioEnd() {
             const notif = document.getElementById('newEmailNotification');
             if (notif) notif.style.display = 'block';
@@ -2555,6 +2629,7 @@ document.getElementById('restartFrom0')?.addEventListener('click', () => showPag
         const savedNote = localStorage.getItem('yanqing_note');
         if (savedNote) noteContent.value = savedNote;
         function closeNote() { noteModal.style.display = 'none'; overlay.style.display = 'none'; }
+        document.getElementById('closeNoteBtn').addEventListener('click', closeNote);
         noteBtn.addEventListener('click', () => { noteModal.style.display = 'block'; overlay.style.display = 'block'; });
         overlay.addEventListener('click', closeNote);
         saveNoteBtn.addEventListener('click', () => { localStorage.setItem('yanqing_note', noteContent.value); closeNote(); });
